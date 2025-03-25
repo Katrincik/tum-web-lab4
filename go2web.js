@@ -7,6 +7,7 @@ const tls = require('tls');
 const cheerio = require('cheerio');
 const { program } = require("commander");
 const { convert } = require('html-to-text');
+const https = require('https');
 
 function fetchUrl(targetUrl) {
     try {
@@ -82,10 +83,46 @@ function fetchUrl(targetUrl) {
     }
 }
 
+function searchWeb(query) {
+    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+
+    https.get(url, res => {
+        let html = '';
+
+        res.on('data', chunk => html += chunk);
+
+        res.on('end', () => {
+            const $ = cheerio.load(html);
+            const results = [];
+
+            $('a.result-link').slice(0, 10).each((i, el) => {
+                const wrappedLink = $(el).attr('href');
+                const match = wrappedLink.match(/uddg=([^&]+)/);
+                const decodedLink = match ? decodeURIComponent(match[1]) : null;
+
+                results.push({
+                    title: $(el).text().trim(),
+                    link: decodedLink || "Link not found"
+                });
+            });
+
+            if (results.length === 0) return console.log("No results found.");
+
+            console.log("\nTop 10 search results:");
+            results.forEach((r, i) => {
+                console.log(`${i + 1}. ${r.title}\n   ${r.link}\n`);
+            });
+        });
+    }).on('error', err => {
+        console.error("Error:", err.message);
+    });
+}
+
 program
     .name("go2web")
     .description("A CLI tool for web-related tasks")
     .option("-u, --url <url>", "Fetch and print content from a URL")
+    .option("-s, --search <query>", "Search the web using DuckDuckGo")
     .parse(process.argv)
 
 program.parse(process.argv);
@@ -96,4 +133,6 @@ if (!process.argv.slice(2).length) {
     program.outputHelp();
 } else if (options.url) {
     fetchUrl(options.url);
+} else if (options.search) {
+    searchWeb(options.search);
 }
