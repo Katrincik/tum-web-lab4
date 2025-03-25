@@ -118,6 +118,7 @@ function searchWeb(query) {
     });
 }
 
+
 program
     .name("go2web")
     .description("A CLI tool for web-related tasks")
