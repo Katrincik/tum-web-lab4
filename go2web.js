@@ -9,7 +9,12 @@ const { program } = require("commander");
 const { convert } = require('html-to-text');
 const https = require('https');
 
-function fetchUrl(targetUrl) {
+function fetchUrl(targetUrl, redirectCount = 0) {
+    if (redirectCount > 5) {
+        console.error("Too many redirects.");
+        return;
+    }
+
     try {
         const parsedUrl = new URL(targetUrl);
         const host = parsedUrl.hostname;
@@ -43,8 +48,23 @@ function fetchUrl(targetUrl) {
             }
 
             const headers = parts[0];
-            // Handle cases where multiple header blocks exist
             const body = parts.slice(1).join('\r\n\r\n');
+
+            const statusLine = headers.split('\r\n')[0];
+            const statusCodeMatch = statusLine.match(/HTTP\/\d+\.\d+\s+(\d+)/);
+            const statusCode = statusCodeMatch ? parseInt(statusCodeMatch[1], 10) : 0;
+
+            if (statusCode >= 300 && statusCode < 400) {
+                const locationMatch = headers.match(/Location:\s*(.+)/i);
+                if (locationMatch) {
+                    let redirectUrl = locationMatch[1].trim().replace(/\r/g, '');
+                    if (!redirectUrl.startsWith('http')) {
+                        redirectUrl = new URL(redirectUrl, parsedUrl).toString();
+                    }
+                    console.log(`Redirecting to: ${redirectUrl}`);
+                    return fetchUrl(redirectUrl, redirectCount + 1);
+                }
+            }
 
             // Detect content type
             const contentTypeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
